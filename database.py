@@ -1,146 +1,127 @@
-import sqlite3
+import streamlit as st
 from datetime import datetime
 import pytz
-import streamlit as st
+import json
+import os
+
+# استخدام JSON file بدلاً من SQLite لتجنب مشاكل التثبيت
+DATA_FILE = 'blog_posts.json'
+APPOINTMENTS_FILE = 'appointments.json'
+CONSULTATIONS_FILE = 'consultations.json'
+
+def load_data(filename, default):
+    """تحميل البيانات من ملف JSON"""
+    try:
+        if os.path.exists(filename):
+            with open(filename, 'r', encoding='utf-8') as f:
+                return json.load(f)
+    except:
+        pass
+    return default
+
+def save_data(filename, data):
+    """حفظ البيانات في ملف JSON"""
+    try:
+        with open(filename, 'w', encoding='utf-8') as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+        return True
+    except Exception as e:
+        st.error(f"خطأ في الحفظ: {str(e)}")
+        return False
 
 def init_db():
-    """تهيئة قاعدة البيانات"""
-    conn = sqlite3.connect('blog_posts.db')
-    c = conn.cursor()
-    
-    # جدول المقالات
-    c.execute('''CREATE TABLE IF NOT EXISTS posts
-                 (id INTEGER PRIMARY KEY AUTOINCREMENT,
-                  title TEXT NOT NULL,
-                  content TEXT NOT NULL,
-                  summary TEXT,
-                  author TEXT,
-                  date TEXT,
-                  category TEXT,
-                  image_url TEXT,
-                  views INTEGER DEFAULT 0,
-                  is_approved INTEGER DEFAULT 1)''')
-    
-    # جدول المواعيد
-    c.execute('''CREATE TABLE IF NOT EXISTS appointments
-                 (id INTEGER PRIMARY KEY AUTOINCREMENT,
-                  name TEXT NOT NULL,
-                  phone TEXT NOT NULL,
-                  email TEXT,
-                  service TEXT,
-                  date TEXT,
-                  time TEXT,
-                  status TEXT DEFAULT 'pending',
-                  created_at TEXT)''')
-    
-    # جدول الاستشارات الافتراضية
-    c.execute('''CREATE TABLE IF NOT EXISTS virtual_consultations
-                 (id INTEGER PRIMARY KEY AUTOINCREMENT,
-                  name TEXT NOT NULL,
-                  phone TEXT NOT NULL,
-                  email TEXT,
-                  preferred_date TEXT,
-                  time_slot TEXT,
-                  symptoms TEXT,
-                  status TEXT DEFAULT 'pending',
-                  created_at TEXT)''')
-    
-    conn.commit()
-    conn.close()
+    """تهيئة قاعدة البيانات (إنشاء الملفات إذا لم توجد)"""
+    if not os.path.exists(DATA_FILE):
+        save_data(DATA_FILE, [])
+    if not os.path.exists(APPOINTMENTS_FILE):
+        save_data(APPOINTMENTS_FILE, [])
+    if not os.path.exists(CONSULTATIONS_FILE):
+        save_data(CONSULTATIONS_FILE, [])
+    return True
 
 def save_post(title, content, summary, author, category, image_url=""):
     """حفظ مقال جديد"""
     try:
-        conn = sqlite3.connect('blog_posts.db')
-        c = conn.cursor()
+        posts = load_data(DATA_FILE, [])
         algiers_tz = pytz.timezone('Africa/Algiers')
-        date = datetime.now(algiers_tz).strftime("%Y-%m-%d %H:%M:%S")
         
-        c.execute("""INSERT INTO posts 
-                     (title, content, summary, author, date, category, image_url) 
-                     VALUES (?, ?, ?, ?, ?, ?, ?)""",
-                  (title, content, summary, author, date, category, image_url))
+        post = {
+            'id': len(posts) + 1,
+            'title': title,
+            'content': content,
+            'summary': summary,
+            'author': author,
+            'date': datetime.now(algiers_tz).strftime("%Y-%m-%d %H:%M:%S"),
+            'category': category,
+            'image_url': image_url,
+            'views': 0
+        }
         
-        post_id = c.lastrowid
-        conn.commit()
-        conn.close()
-        return post_id
+        posts.insert(0, post)  # إضافة في البداية
+        save_data(DATA_FILE, posts)
+        return post['id']
     except Exception as e:
         st.error(f"خطأ في حفظ المقال: {str(e)}")
         return None
 
 def get_all_posts():
     """الحصول على جميع المقالات"""
-    try:
-        conn = sqlite3.connect('blog_posts.db')
-        c = conn.cursor()
-        c.execute("SELECT * FROM posts ORDER BY date DESC")
-        posts = c.fetchall()
-        conn.close()
-        return posts
-    except Exception as e:
-        return []
-
-def get_post(post_id):
-    """الحصول على مقال محدد"""
-    try:
-        conn = sqlite3.connect('blog_posts.db')
-        c = conn.cursor()
-        c.execute("SELECT * FROM posts WHERE id = ?", (post_id,))
-        post = c.fetchone()
-        conn.close()
-        return post
-    except Exception as e:
-        return None
+    return load_data(DATA_FILE, [])
 
 def delete_post(post_id):
     """حذف مقال"""
     try:
-        conn = sqlite3.connect('blog_posts.db')
-        c = conn.cursor()
-        c.execute("DELETE FROM posts WHERE id = ?", (post_id,))
-        conn.commit()
-        conn.close()
+        posts = load_data(DATA_FILE, [])
+        posts = [p for p in posts if p['id'] != post_id]
+        save_data(DATA_FILE, posts)
         return True
-    except Exception as e:
+    except:
         return False
 
 def save_appointment(name, phone, email, service, date, time):
     """حفظ موعد جديد"""
     try:
-        conn = sqlite3.connect('blog_posts.db')
-        c = conn.cursor()
+        appointments = load_data(APPOINTMENTS_FILE, [])
         algiers_tz = pytz.timezone('Africa/Algiers')
-        created_at = datetime.now(algiers_tz).strftime("%Y-%m-%d %H:%M:%S")
         
-        c.execute("""INSERT INTO appointments 
-                     (name, phone, email, service, date, time, status, created_at) 
-                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-                  (name, phone, email, service, date, time, 'pending', created_at))
+        appointment = {
+            'id': len(appointments) + 1,
+            'name': name,
+            'phone': phone,
+            'email': email,
+            'service': service,
+            'date': date,
+            'time': time,
+            'status': 'pending',
+            'created_at': datetime.now(algiers_tz).strftime("%Y-%m-%d %H:%M:%S")
+        }
         
-        conn.commit()
-        conn.close()
+        appointments.append(appointment)
+        save_data(APPOINTMENTS_FILE, appointments)
         return True
-    except Exception as e:
-        st.error(f"خطأ في حفظ الموعد: {str(e)}")
+    except:
         return False
 
 def save_virtual_consultation(name, phone, email, preferred_date, time_slot, symptoms):
     """حفظ استشارة افتراضية"""
     try:
-        conn = sqlite3.connect('blog_posts.db')
-        c = conn.cursor()
+        consultations = load_data(CONSULTATIONS_FILE, [])
         algiers_tz = pytz.timezone('Africa/Algiers')
-        created_at = datetime.now(algiers_tz).strftime("%Y-%m-%d %H:%M:%S")
         
-        c.execute("""INSERT INTO virtual_consultations 
-                     (name, phone, email, preferred_date, time_slot, symptoms, status, created_at) 
-                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-                  (name, phone, email, preferred_date, time_slot, symptoms, 'pending', created_at))
+        consultation = {
+            'id': len(consultations) + 1,
+            'name': name,
+            'phone': phone,
+            'email': email,
+            'preferred_date': preferred_date,
+            'time_slot': time_slot,
+            'symptoms': symptoms,
+            'status': 'pending',
+            'created_at': datetime.now(algiers_tz).strftime("%Y-%m-%d %H:%M:%S")
+        }
         
-        conn.commit()
-        conn.close()
+        consultations.append(consultation)
+        save_data(CONSULTATIONS_FILE, consultations)
         return True
-    except Exception as e:
-        st.error(f"خطأ في حفظ الاستشارة: {str(e)}")
+    except:
         return False
