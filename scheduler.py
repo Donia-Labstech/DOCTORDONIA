@@ -1,15 +1,11 @@
-import threading
-import time
+import streamlit as st
 from datetime import datetime
 import pytz
-import streamlit as st
 from blog_generator import BlogGenerator
 from database import save_post
 
 class BlogScheduler:
     def __init__(self):
-        self.running = False
-        self.thread = None
         self.last_post_date = None
         
     def generate_daily_post(self):
@@ -21,62 +17,38 @@ class BlogScheduler:
             
             # التحقق من عدم تكرار النشر
             if self.last_post_date == today_str:
-                return
+                return False
                 
-            st.info(f"🔄 جاري توليد مقال جديد ليوم {today_str}...")
-            
-            generator = BlogGenerator()
-            post = generator.generate_daily_post()
-            
-            if post:
-                post_id = save_post(
-                    title=post['title'],
-                    content=post['content'],
-                    summary=post['summary'],
-                    author=post['author'],
-                    category=post['category'],
-                    image_url=post['image_url']
-                )
+            # التحقق إذا كانت الساعة 6 مساءً أو بعدها
+            if now.hour >= 18:
+                st.info(f"🔄 جاري توليد مقال جديد ليوم {today_str}...")
                 
-                if post_id:
-                    self.last_post_date = today_str
-                    st.success(f"✅ تم نشر مقال جديد: {post['title']}")
+                generator = BlogGenerator()
+                post = generator.generate_daily_post()
+                
+                if post:
+                    post_id = save_post(
+                        title=post['title'],
+                        content=post['content'],
+                        summary=post['summary'],
+                        author=post['author'],
+                        category=post['category'],
+                        image_url=post['image_url']
+                    )
                     
-                    # تحديث session state
-                    if 'daily_post' in st.session_state:
-                        st.session_state.daily_post = post
-                    return True
+                    if post_id:
+                        self.last_post_date = today_str
+                        st.success(f"✅ تم نشر مقال جديد: {post['title']}")
+                        
+                        if 'daily_post' in st.session_state:
+                            st.session_state.daily_post = post
+                        return True
             return False
             
         except Exception as e:
             st.error(f"خطأ في جدولة المقال: {str(e)}")
             return False
-            
-    def run_scheduler(self):
-        """تشغيل المجدول"""
-        algiers_tz = pytz.timezone('Africa/Algiers')
-        
-        while self.running:
-            try:
-                now = datetime.now(algiers_tz)
-                # التحقق عند الساعة 6 مساءً (18:00)
-                if now.hour == 18 and now.minute == 0 and now.second < 30:
-                    self.generate_daily_post()
-                    time.sleep(60)  # انتظر دقيقة كاملة
-                time.sleep(30)  # تحقق كل 30 ثانية
-            except Exception as e:
-                time.sleep(60)
-            
-    def start(self):
-        """بدء التشغيل"""
-        if not self.running:
-            self.running = True
-            self.thread = threading.Thread(target=self.run_scheduler, daemon=True)
-            self.thread.start()
-            return True
-        return False
-        
-    def stop(self):
-        """إيقاف التشغيل"""
-        self.running = False
-        return True
+    
+    def check_and_generate(self):
+        """التحقق من الوقت وتوليد المحتوى إذا لزم الأمر"""
+        return self.generate_daily_post()
