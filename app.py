@@ -9,17 +9,22 @@ from scheduler import BlogScheduler
 st.set_page_config(
     page_title="عيادة د. دنيا لطب الأسنان",
     page_icon="🦷",
-    layout="wide",
-    initial_sidebar_state="auto"
+    layout="wide"
 )
 
 # تهيئة قاعدة البيانات
 init_db()
 
-# تهيئة المجدول
+# تهيئة المجدول والتحقق من الموعد اليومي
 if 'scheduler' not in st.session_state:
     st.session_state.scheduler = BlogScheduler()
-    st.session_state.scheduler.start()
+    st.session_state.last_check = None
+
+# التحقق من الوقت كل مرة يتم فيها تحميل الصفحة
+current_hour = datetime.now(pytz.timezone('Africa/Algiers')).hour
+if current_hour >= 18 and st.session_state.get('last_check') != datetime.now().strftime("%Y-%m-%d"):
+    st.session_state.scheduler.check_and_generate()
+    st.session_state.last_check = datetime.now().strftime("%Y-%m-%d")
 
 # CSS مخصص
 st.markdown("""
@@ -50,6 +55,7 @@ st.markdown("""
         box-shadow: 0 5px 15px rgba(0,0,0,0.1);
         text-align: center;
         margin: 1rem 0;
+        border: 1px solid #e0e0e0;
     }
     
     .stats-card {
@@ -69,11 +75,33 @@ st.markdown("""
         background: linear-gradient(135deg, #0d6efd, #9d4edd);
         color: white;
         border: none;
+        transition: transform 0.3s;
     }
     
     div.stButton > button:hover {
         transform: translateY(-2px);
         box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+    }
+    
+    .blog-post {
+        background: #f8f9fa;
+        padding: 1rem;
+        border-radius: 10px;
+        margin: 1rem 0;
+    }
+    
+    /* تحسين التبويبات */
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 2rem;
+        background-color: #f0f2f6;
+        padding: 0.5rem;
+        border-radius: 10px;
+    }
+    
+    .stTabs [data-baseweb="tab"] {
+        border-radius: 8px;
+        padding: 0.5rem 1rem;
+        font-weight: 600;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -81,14 +109,15 @@ st.markdown("""
 # الهيدر
 st.markdown("""
 <div class="main-header">
-    <h1 style="font-size: 2.5rem;">🦷 عيادة د. دنيا لطب الأسنان</h1>
-    <p style="font-size: 1.2rem;">رعاية فموية شاملة بمعايير عالمية في قلب الجزائر</p>
-    <p style="font-size: 1rem;">✨ ابتسامتك الصحية هي أولويتنا ✨</p>
+    <h1 style="font-size: 2rem; margin:0;">🦷 عيادة د. دنيا لطب الأسنان</h1>
+    <p style="font-size: 1rem; margin-top: 0.5rem;">رعاية فموية شاملة بمعايير عالمية في قلب الجزائر</p>
+    <p style="font-size: 0.9rem;">✨ ابتسامتك الصحية هي أولويتنا ✨</p>
 </div>
 """, unsafe_allow_html=True)
 
 # إنشاء التبويبات
-tabs = st.tabs(["🏠 الرئيسية", "🦷 خدماتنا", "📝 المدونة الذكية", "💻 العيادة الافتراضية", "📅 احجز موعدك", "👩‍⚕️ من نحن"])
+tab_names = ["🏠 الرئيسية", "🦷 خدماتنا", "📝 المدونة الذكية", "💻 العيادة الافتراضية", "📅 احجز موعدك", "👩‍⚕️ من نحن"]
+tabs = st.tabs(tab_names)
 
 # ==================== التبويب 1: الرئيسية ====================
 with tabs[0]:
@@ -118,21 +147,21 @@ with tabs[0]:
     with col_a:
         st.markdown("""
         <div class="stats-card">
-            <h2 style="font-size: 2rem; margin:0;">+5000</h2>
+            <h2 style="font-size: 1.8rem; margin:0;">+5000</h2>
             <p style="margin:0;">مريض راضٍ</p>
         </div>
         """, unsafe_allow_html=True)
     with col_b:
         st.markdown("""
         <div class="stats-card">
-            <h2 style="font-size: 2rem; margin:0;">10+</h2>
+            <h2 style="font-size: 1.8rem; margin:0;">10+</h2>
             <p style="margin:0;">سنوات خبرة</p>
         </div>
         """, unsafe_allow_html=True)
     with col_c:
         st.markdown("""
         <div class="stats-card">
-            <h2 style="font-size: 2rem; margin:0;">24/7</h2>
+            <h2 style="font-size: 1.8rem; margin:0;">24/7</h2>
             <p style="margin:0;">دعم مستمر</p>
         </div>
         """, unsafe_allow_html=True)
@@ -140,6 +169,7 @@ with tabs[0]:
 # ==================== التبويب 2: خدماتنا ====================
 with tabs[1]:
     st.markdown("## 🦷 خدماتنا المتخصصة")
+    st.markdown("نقدم مجموعة شاملة من خدمات طب الأسنان بأحدث التقنيات")
     
     services = [
         {"icon": "🦷", "title": "تنظيف وفحص دوري", "desc": "فحص شامل وتنظيف احترافي لإزالة الجير والتصبغات"},
@@ -158,8 +188,8 @@ with tabs[1]:
                     st.markdown(f"""
                     <div class="service-card">
                         <div style="font-size: 3rem;">{services[i+j]['icon']}</div>
-                        <h3>{services[i+j]['title']}</h3>
-                        <p style="color: #666;">{services[i+j]['desc']}</p>
+                        <h3 style="font-size: 1.2rem;">{services[i+j]['title']}</h3>
+                        <p style="color: #666; font-size: 0.9rem;">{services[i+j]['desc']}</p>
                     </div>
                     """, unsafe_allow_html=True)
 
@@ -187,19 +217,24 @@ with tabs[2]:
     posts = get_all_posts()
     
     if posts:
-        for post in posts[:5]:  # عرض آخر 5 مقالات فقط
-            with st.expander(f"📄 {post[1]} - {post[4]}"):
-                st.markdown(f"**✍️ {post[5]}** | **📅 {post[4]}** | **🏷️ {post[7]}**")
+        for post in posts[:5]:
+            with st.expander(f"📄 {post['title']} - {post['date']}"):
+                st.markdown(f"**✍️ {post['author']}** | **🏷️ {post['category']}**")
                 st.markdown("---")
-                st.markdown(f"**📝 {post[3]}**")
+                st.markdown(f"**📝 {post['summary']}**")
                 st.markdown("---")
-                st.markdown(post[2])
+                st.markdown(post['content'])
+                
+                if st.button(f"🗑️ حذف", key=f"del_{post['id']}"):
+                    delete_post(post['id'])
+                    st.rerun()
     else:
         st.info("📭 لا توجد مقالات حالياً. اضغط على 'توليد مقال جديد' لبدء النشر.")
 
 # ==================== التبويب 4: العيادة الافتراضية ====================
 with tabs[3]:
     st.markdown("## 💻 العيادة الافتراضية")
+    st.markdown("استشر د. دنيا من منزلك عبر الإنترنت")
     
     col1, col2 = st.columns([1, 1])
     
@@ -322,8 +357,8 @@ with tabs[5]:
 # الفوتر
 st.markdown("---")
 st.markdown("""
-<div style="text-align: center; padding: 1.5rem; background: linear-gradient(135deg, #0d6efd, #9d4edd); border-radius: 20px; color: white;">
-    <p>© 2026 عيادة د. دنيا لطب الأسنان - جميع الحقوق محفوظة</p>
-    <p style="font-size: 0.9rem;">بابتسامة صحية نصنع مستقبل أفضل | بليدة، الجزائر</p>
+<div style="text-align: center; padding: 1rem; background: linear-gradient(135deg, #0d6efd, #9d4edd); border-radius: 20px; color: white;">
+    <p style="margin:0;">© 2026 عيادة د. دنيا لطب الأسنان - جميع الحقوق محفوظة</p>
+    <p style="font-size: 0.8rem; margin-top: 0.5rem;">بابتسامة صحية نصنع مستقبل أفضل | بليدة، الجزائر</p>
 </div>
 """, unsafe_allow_html=True)
